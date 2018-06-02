@@ -106,6 +106,20 @@ public class NodeAndRelationsCreatorProcedureTest {
         countNumberOfNodesAndRelations(names, query, 1, 10);
     }
 
+
+    @Test
+    public void testShouldCreateNoneForNoneNodesAndManyRelations() throws Throwable {
+        String names = "[]";
+        String query = String.format("CALL createNodesAndRelations(%s, 10)", names);
+        Result execute = graphDb.execute(query);
+        System.out.println("PROCEDURE RESULT:");
+        Map<String, Object> actual = execute.next();
+        System.out.println(actual.keySet() + " " + actual.values());
+        printAfterProcedure();
+        assertEquals("Expected false found true in " + query, false, actual.get("result"));
+        countNumberOfNodesAndRelations(names, query, 0, 0);
+    }
+
     private void printAfterProcedure() {
         System.out.println("AFTER PROCEDURE:");
         Result afterProcedure = graphDb.execute("START n=node(*) OPTIONAL MATCH (n)-[r]->(m) RETURN n,r,m;");

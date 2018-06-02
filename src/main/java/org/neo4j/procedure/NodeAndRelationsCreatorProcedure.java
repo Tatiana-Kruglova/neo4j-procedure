@@ -36,17 +36,19 @@ public class NodeAndRelationsCreatorProcedure {
                 createdNodes.add(node);
             });
             int size = createdNodes.size();
-            for (int i = 0; i < relations; i++) {
-                int toIndex = 0;
-                int fromIndex = 0;
-                while (size > 1 && toIndex == fromIndex) {
-                    toIndex = new Random().nextInt(size);
-                    fromIndex = new Random().nextInt(size);
+            if (size > 0) {
+                for (int i = 0; i < relations; i++) {
+                    int toIndex = 0;
+                    int fromIndex = 0;
+                    while (size > 1 && toIndex == fromIndex) {
+                        toIndex = new Random().nextInt(size);
+                        fromIndex = new Random().nextInt(size);
+                    }
+                    Node fromNode = createdNodes.get(fromIndex);
+                    Node toNode = createdNodes.get(toIndex);
+                    RelationshipType relation = RelationshipType.withName("RELATION");
+                    fromNode.createRelationshipTo(toNode, relation);
                 }
-                Node fromNode = createdNodes.get(fromIndex);
-                Node toNode = createdNodes.get(toIndex);
-                RelationshipType relation = RelationshipType.withName("RELATION");
-                fromNode.createRelationshipTo(toNode, relation);
             }
             HashMap<String, Object> parameters = new HashMap<>();
             parameters.put("nodes", nodes);
