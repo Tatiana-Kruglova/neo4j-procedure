@@ -23,9 +23,9 @@ import static org.junit.Assert.assertEquals;
 public class NodeAndRelationsCreatorProcedureTest {
     @Rule
     public Neo4jRule neo4j = new Neo4jRule().withProcedure(NodeAndRelationsCreatorProcedure.class);
-    protected GraphDatabaseService graphDb;
     @Rule
     public TemporaryFolder plugins = new TemporaryFolder();
+    private GraphDatabaseService graphDb;
 
     @Before
     public void prepareTestDatabase() throws IOException {
@@ -118,6 +118,27 @@ public class NodeAndRelationsCreatorProcedureTest {
         printAfterProcedure();
         assertEquals("Expected false found true in " + query, false, actual.get("result"));
         countNumberOfNodesAndRelations(names, query, 0, 0);
+    }
+
+    @Test
+    public void testShouldCheckCyclesOnlyInCreatedNodes() throws Throwable {
+        String names = "['A','B', 'C', 'D']";
+        String query = String.format("CALL createNodesAndRelations(%s, 5)", names);
+        Result execute = graphDb.execute(query);
+        System.out.println("PROCEDURE RESULT:");
+        Map<String, Object> actual = execute.next();
+        System.out.println(actual.keySet() + " " + actual.values());
+        printAfterProcedure();
+        assertEquals("Expected true found false in " + query, true, actual.get("result"));
+        countNumberOfNodesAndRelations(names, query, 4, 5);
+        names = "['A','B', 'C', 'D']";
+        query = String.format("CALL createNodesAndRelations(%s, 1)", names);
+        execute = graphDb.execute(query);
+        System.out.println("PROCEDURE RESULT:");
+        actual = execute.next();
+        System.out.println(actual.keySet() + " " + actual.values());
+        printAfterProcedure();
+        assertEquals("Expected false found true in " + query, false, actual.get("result"));
     }
 
     private void printAfterProcedure() {

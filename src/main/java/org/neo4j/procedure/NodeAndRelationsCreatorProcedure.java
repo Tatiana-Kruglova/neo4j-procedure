@@ -13,9 +13,8 @@ public class NodeAndRelationsCreatorProcedure {
     public GraphDatabaseService db;
 
     /**
-     * Develop neo4j procedure createNodesAndRelations(<node_names_array>, N)
-     * , where
-     * <node_names_array> - the list of nodes to create.
+     * Neo4j procedure createNodesAndRelations(<node_names_array>, N),
+     * where<node_names_array> - the list of nodes to create.
      * N - the number of directional relations to create between random nodes.
      * <p>
      * Procedure should return value is there any cycles created with function.
@@ -28,12 +27,15 @@ public class NodeAndRelationsCreatorProcedure {
     @Procedure(value = "createNodesAndRelations", mode = Mode.WRITE)
     @Description("Create list of nodes and relations.")
     public Stream<Output> createNodesAndRelations(@Name("nodes") List<String> nodes, @Name("relations") long relations) {
-        try (Transaction ignore = db.beginTx()) {
+        try (Transaction tx = db.beginTx()) {
             List<Node> createdNodes = new ArrayList<>();
+            List<Long> nodeIds = new ArrayList<>();
+
             nodes.stream().forEach(s -> {
                 Node node = db.createNode(Label.label("node"));
                 node.setProperty("name", s);
                 createdNodes.add(node);
+                nodeIds.add(node.getId());
             });
             int size = createdNodes.size();
             if (size > 0) {
@@ -51,9 +53,9 @@ public class NodeAndRelationsCreatorProcedure {
                 }
             }
             HashMap<String, Object> parameters = new HashMap<>();
-            parameters.put("nodes", nodes);
-            Result result = db.execute("MATCH path = (e:node)-[:RELATION*]-(e:node) where e.name in {nodes} RETURN count(e) > 0 as result", parameters);
-            ignore.success();
+            parameters.put("nodesids", nodeIds);
+            Result result = db.execute("MATCH path = (e:node)-[:RELATION*]-(e:node) where ID(e) in {nodesids} RETURN count(e) > 0 as result", parameters);
+            tx.success();
             return result.stream().map(Output::new);
         }
     }
