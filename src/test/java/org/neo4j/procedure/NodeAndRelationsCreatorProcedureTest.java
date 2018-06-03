@@ -5,15 +5,13 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.Result;
+import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
-import org.neo4j.harness.junit.Neo4jRule;
 import org.neo4j.kernel.impl.proc.JarBuilder;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.Assert.assertEquals;
 
@@ -21,8 +19,6 @@ import static org.junit.Assert.assertEquals;
  * Created by Tatiana Chukina
  */
 public class NodeAndRelationsCreatorProcedureTest {
-    @Rule
-    public Neo4jRule neo4j = new Neo4jRule().withProcedure(NodeAndRelationsCreatorProcedure.class);
     @Rule
     public TemporaryFolder plugins = new TemporaryFolder();
     private GraphDatabaseService graphDb;
@@ -50,7 +46,6 @@ public class NodeAndRelationsCreatorProcedureTest {
         Map<String, Object> actual = execute.next();
         System.out.println(actual.keySet() + " " + actual.values());
         printAfterProcedure();
-        assertEquals("Expected true found false in " + query, true, actual.get("result"));
         countNumberOfNodesAndRelations(names, query, 4l, 5l);
     }
 
@@ -94,7 +89,7 @@ public class NodeAndRelationsCreatorProcedureTest {
     }
 
     @Test
-    public void testShouldCreateSingleNodeManyRelations() throws Throwable {
+    public void testShouldCreateSingleNodeNoneRelations() throws Throwable {
         String names = "['A']";
         String query = String.format("CALL createNodesAndRelations(%s, 10)", names);
         Result execute = graphDb.execute(query);
@@ -102,8 +97,8 @@ public class NodeAndRelationsCreatorProcedureTest {
         Map<String, Object> actual = execute.next();
         System.out.println(actual.keySet() + " " + actual.values());
         printAfterProcedure();
-        assertEquals("Expected true found false in " + query, true, actual.get("result"));
-        countNumberOfNodesAndRelations(names, query, 1, 10);
+        assertEquals("Expected false found true in " + query, false, actual.get("result"));
+        countNumberOfNodesAndRelations(names, query, 1, 0);
     }
 
 
@@ -122,23 +117,88 @@ public class NodeAndRelationsCreatorProcedureTest {
 
     @Test
     public void testShouldCheckCyclesOnlyInCreatedNodes() throws Throwable {
+        createCyclesManually();
         String names = "['A','B', 'C', 'D']";
-        String query = String.format("CALL createNodesAndRelations(%s, 5)", names);
+        String query = String.format("CALL createNodesAndRelations(%s, 1)", names);
         Result execute = graphDb.execute(query);
         System.out.println("PROCEDURE RESULT:");
         Map<String, Object> actual = execute.next();
         System.out.println(actual.keySet() + " " + actual.values());
         printAfterProcedure();
-        assertEquals("Expected true found false in " + query, true, actual.get("result"));
-        countNumberOfNodesAndRelations(names, query, 4, 5);
-        names = "['A','B', 'C', 'D']";
-        query = String.format("CALL createNodesAndRelations(%s, 1)", names);
-        execute = graphDb.execute(query);
-        System.out.println("PROCEDURE RESULT:");
-        actual = execute.next();
-        System.out.println(actual.keySet() + " " + actual.values());
-        printAfterProcedure();
         assertEquals("Expected false found true in " + query, false, actual.get("result"));
+    }
+
+    @Test
+    public void testShouldCreateCycles() throws Throwable {
+        createCyclesManually();
+    }
+
+    private void createCyclesManually() {
+        List<Long> nodeIds = new ArrayList<>();
+        List<String> nodes = Arrays.asList("A", "B", "C");
+        try (Transaction tx = graphDb.beginTx()) {
+            List<Node> createdNodes = new ArrayList<>();
+            nodes.stream().forEach(s -> {
+                Node node = graphDb.createNode(Label.label("node"));
+                node.setProperty("name", s);
+                createdNodes.add(node);
+                nodeIds.add(node.getId());
+            });
+            for (int i = 0; i < createdNodes.size(); i++) {
+                int toIndex = i + 1 >= createdNodes.size() ? 0 : i + 1;
+                Node fromNode = createdNodes.get(i);
+                Node toNode = createdNodes.get(toIndex);
+                RelationshipType relation = RelationshipType.withName("RELATION");
+                fromNode.createRelationshipTo(toNode, relation);
+            }
+            tx.success();
+        }
+        HashMap<String, Object> parameters = new HashMap<>();
+        parameters.put("nodesids", nodeIds);
+        Result execute = graphDb.execute(NodeAndRelationsCreatorProcedure.CYCLES_QUERY, parameters);
+        System.out.println("PROCEDURE RESULT:");
+        Map<String, Object> actual = execute.next();
+        System.out.println(actual.keySet() + " " + actual.values());
+        assertEquals("Expected true found false in " + NodeAndRelationsCreatorProcedure.CYCLES_QUERY, true, actual.get("result"));
+        printAfterProcedure();
+    }
+
+    @Test
+    public void testShouldNotCreateCyclesForBiDirectional() throws Throwable {
+        List<Long> nodeIds = new ArrayList<>();
+        List<String> nodes = Arrays.asList("A", "B", "C");
+        try (Transaction tx = graphDb.beginTx()) {
+            List<Node> createdNodes = new ArrayList<>();
+            nodes.stream().forEach(s -> {
+                Node node = graphDb.createNode(Label.label("node"));
+                node.setProperty("name", s);
+                createdNodes.add(node);
+                nodeIds.add(node.getId());
+            });
+            for (int i = 0; i < createdNodes.size(); i++) {
+                Node fromNode;
+                Node toNode;
+                if (i + 1 >= createdNodes.size()) {
+                    fromNode = createdNodes.get(0);
+                    toNode = createdNodes.get(i);
+                } else {
+                    int toIndex = i + 1 >= createdNodes.size() ? 0 : i + 1;
+                    fromNode = createdNodes.get(i);
+                    toNode = createdNodes.get(toIndex);
+                }
+                RelationshipType relation = RelationshipType.withName("RELATION");
+                fromNode.createRelationshipTo(toNode, relation);
+            }
+            tx.success();
+        }
+        HashMap<String, Object> parameters = new HashMap<>();
+        parameters.put("nodesids", nodeIds);
+        Result execute = graphDb.execute(NodeAndRelationsCreatorProcedure.CYCLES_QUERY, parameters);
+        System.out.println("PROCEDURE RESULT:");
+        Map<String, Object> actual = execute.next();
+        System.out.println(actual.keySet() + " " + actual.values());
+        assertEquals("Expected false found true in " + NodeAndRelationsCreatorProcedure.CYCLES_QUERY, false, actual.get("result"));
+        printAfterProcedure();
     }
 
     private void printAfterProcedure() {

@@ -9,6 +9,7 @@ import java.util.stream.Stream;
  * Created by Tatiana Chukina
  */
 public class NodeAndRelationsCreatorProcedure {
+    public static final String CYCLES_QUERY = "MATCH path = (e:node)-[:RELATION*]->(e:node) where ID(e) in {nodesids} RETURN count(e) > 0 as result";
     @Context
     public GraphDatabaseService db;
 
@@ -38,7 +39,7 @@ public class NodeAndRelationsCreatorProcedure {
                 nodeIds.add(node.getId());
             });
             int size = createdNodes.size();
-            if (size > 0) {
+            if (size > 1) {
                 for (int i = 0; i < relations; i++) {
                     int toIndex = 0;
                     int fromIndex = 0;
@@ -54,7 +55,7 @@ public class NodeAndRelationsCreatorProcedure {
             }
             HashMap<String, Object> parameters = new HashMap<>();
             parameters.put("nodesids", nodeIds);
-            Result result = db.execute("MATCH path = (e:node)-[:RELATION*]-(e:node) where ID(e) in {nodesids} RETURN count(e) > 0 as result", parameters);
+            Result result = db.execute(CYCLES_QUERY, parameters);
             tx.success();
             return result.stream().map(Output::new);
         }
