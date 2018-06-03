@@ -43,7 +43,7 @@ public class NodeAndRelationsCreatorProcedure {
                 for (int i = 0; i < relations; i++) {
                     int toIndex = 0;
                     int fromIndex = 0;
-                    while (size > 1 && toIndex == fromIndex) {
+                    while (toIndex == fromIndex) {
                         toIndex = new Random().nextInt(size);
                         fromIndex = new Random().nextInt(size);
                     }
